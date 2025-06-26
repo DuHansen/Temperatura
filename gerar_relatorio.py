@@ -99,14 +99,9 @@ with PdfPages('artigo_meteorologico_completo.pdf') as pdf:
     # 3. RESULTADOS - TEMPERATURA
     plt.figure(figsize=(11, 8))
 
-    # Tabela de Temperaturas Mínimas e Máximas por Ano
-    temp_ano_max_min = df.groupby('ANO')['TEMPERATURA_AR'].agg(['min', 'max'])
-    add_text_page(pdf, "Temperaturas Mínimas e Máximas por Ano", 
-                  [f"A tabela abaixo mostra as temperaturas mínimas e máximas por ano:"] + 
-                  [str(temp_ano_max_min)])
-
-    # 1. Detecção de Eventos de Alta Temperatura
+   # 1. Detecção de Eventos de Alta Temperatura
     temp_alta = df[df['TEMPERATURA_AR'] > 35]  # Considerando temperatura acima de 35°C como alta
+    plt.figure(figsize=(11, 8))
     plt.plot(temp_alta['DATA'], temp_alta['TEMPERATURA_AR'], marker='o', color='red', label="Eventos de Alta Temperatura")
     plt.title("Eventos de Alta Temperatura (> 35°C)", pad=20)
     plt.xlabel('Data')
@@ -122,21 +117,7 @@ with PdfPages('artigo_meteorologico_completo.pdf') as pdf:
     pdf.savefig()
     plt.close()
 
-    # 2. Gráfico de Colunas de Temperatura Média por Ano
-    temp_ano = df.groupby('ANO')['TEMPERATURA_AR'].mean()  # Temperatura média por ano
-    plt.bar(temp_ano.index, temp_ano.values, color='skyblue')
-    plt.title("Temperatura Média Anual", pad=20)
-    plt.xlabel('Ano')
-    plt.ylabel('Temperatura Média (°C)')
-    
-    # Adicionar valores sobre as colunas
-    for i, txt in enumerate(temp_ano.values):
-        plt.text(temp_ano.index[i], txt + 0.1, f'{txt:.2f}', ha='center', color='black')
-
-    pdf.savefig()
-    plt.close()
-
-    # 3. Análise de Vento: Direção e Intensidade
+    # 2. Análise de Vento: Direção e Intensidade
     vento_dir = df.groupby('ANO')['VENTO_DIRECAO'].mean()  # Direção média do vento por ano
     vento_vel = df.groupby('ANO')['VENTO_VELOCIDADE'].mean()  # Velocidade média do vento por ano
     plt.figure(figsize=(11, 8))
@@ -173,24 +154,121 @@ with PdfPages('artigo_meteorologico_completo.pdf') as pdf:
     pdf.savefig()
     plt.close()
 
+    # 3. Correlação entre Temperatura e Umidade Relativa
+    plt.figure(figsize=(11, 8))
+    plt.scatter(df['TEMPERATURA_AR'], df['UMIDADE_RELATIVA'], color='green', alpha=0.5)
+    plt.title("Correlação entre Temperatura e Umidade Relativa", pad=20)
+    plt.xlabel('Temperatura (°C)')
+    plt.ylabel('Umidade Relativa (%)')
+    plt.grid(True)
+
+    # Adicionar valores nas coordenadas dos pontos
+    for i in range(len(df)):
+        plt.annotate(f'({df["TEMPERATURA_AR"].iloc[i]:.2f}, {df["UMIDADE_RELATIVA"].iloc[i]:.2f})',
+                    (df['TEMPERATURA_AR'].iloc[i], df['UMIDADE_RELATIVA'].iloc[i]),
+                    textcoords="offset points", xytext=(0, 10), ha='center', fontsize=8)
+
+    pdf.savefig()
+    plt.close()
+
+    # 4. RESULTADOS - TENDÊNCIAS E SAZONALIDADE
+    plt.figure(figsize=(11, 8))
+
+    # 4.1 Tendência de Temperatura e Umidade Relativa
+    temp_ano = df.groupby('ANO')['TEMPERATURA_AR'].mean()
+    umidade_ano = df.groupby('ANO')['UMIDADE_RELATIVA'].mean()
+
+    # Salvar a inclinação da tendência para a discussão
+    z_temp = np.polyfit(temp_ano.index, temp_ano.values, 1)
+    z_umidade = np.polyfit(umidade_ano.index, umidade_ano.values, 1)
+
+    plt.subplot(2, 1, 1)
+    plt.plot(temp_ano.index, temp_ano.values, marker='o', color='red', label="Temperatura Média Anual")
+    plt.plot(temp_ano.index, np.polyval(z_temp, temp_ano.index), color='black', linestyle='--', label="Tendência Temperatura")
+    plt.plot(umidade_ano.index, umidade_ano.values, marker='x', color='blue', label="Umidade Relativa Média Anual")
+    plt.plot(umidade_ano.index, np.polyval(z_umidade, umidade_ano.index), color='black', linestyle='--', label="Tendência Umidade Relativa")
+    plt.title("Tendência de Temperatura e Umidade Relativa (2010-2025)", pad=20)
+    plt.xlabel('Ano')
+    plt.ylabel('Valor Médio')
+    plt.grid(True)
+    plt.legend()
+
+    # Adicionar valores nos pontos de temperatura e umidade
+    for i, txt in enumerate(temp_ano.values):
+        plt.annotate(f'{txt:.2f}', (temp_ano.index[i], temp_ano.values[i]),
+                    textcoords="offset points", xytext=(0, 10), ha='center')
+    for i, txt in enumerate(umidade_ano.values):
+        plt.annotate(f'{txt:.2f}', (umidade_ano.index[i], umidade_ano.values[i]),
+                    textcoords="offset points", xytext=(0, 10), ha='center')
+
+    # 4.2 Análise Sazonal e Tendências Temporais
+    temp_mensal = df.groupby('MES')['TEMPERATURA_AR'].mean()
+    precip_mensal = df.groupby('MES')['PRECIPITACAO_TOTAL'].sum()
+
+    plt.subplot(2, 1, 2)
+    plt.plot(temp_mensal.index, temp_mensal.values, marker='o', color='orange', label="Temperatura Média Mensal")
+    plt.bar(precip_mensal.index, precip_mensal.values, color='lightblue', alpha=0.6, label="Precipitação Total Mensal")
+    plt.title("Análise Sazonal de Temperatura e Precipitação", pad=20)
+    plt.xlabel('Mês')
+    plt.ylabel('Valor Médio / Total')
+    plt.grid(True)
+    plt.legend()
+
+    # Adicionar valores nas colunas de precipitação
+    for i in range(len(precip_mensal)):
+        plt.text(precip_mensal.index[i], precip_mensal.values[i] + 0.5, f'{precip_mensal.values[i]:.2f}',
+                ha='center', fontsize=10, color='black')
+
+    plt.tight_layout()
+    pdf.savefig()
+    plt.close()
+
+
     # 5. DISCUSSÃO
     discussao_text = [
-        "Os resultados apresentados demonstram padrões interessantes nas variáveis meteorológicas ",
-        "analisadas para a estação {ESTACAO}. A tendência de aumento de temperatura observada...",
-        "Quanto aos ventos, a variação observada...",
-        "A umidade relativa e pressão atmosférica apresentaram...",
+        f"Os resultados apresentados demonstram padrões interessantes nas variáveis meteorológicas ",
+        f"analisadas para a estação {ESTACAO}. A tendência de aumento de temperatura observada ",
+        f"({z_temp[0]:.3f}°C/ano) está em concordância com... [complete com comparações]",
+        "",
+        f"Quanto aos ventos, a variação observada... [discuta os resultados]",
+        "",
+        "A umidade relativa e pressão atmosférica apresentaram... [discuta os resultados]",
+        "",
+        "Estes resultados são consistentes/com diferem de estudos anteriores como... [cite estudos]"
     ]
     add_text_page(pdf, "6. Discussão", discussao_text)
 
     # 6. CONCLUSÃO
     conclusao_text = [
-        "Esta análise abrangente dos dados meteorológicos de 2010 a 2025 para a estação de {ESTACAO} revelou várias tendências importantes...",
+        "Esta análise abrangente dos dados meteorológicos de 2010 a 2025 para a estação de ",
+        f"{ESTACAO} revelou várias tendências importantes:",
+        "",
+        "1. [Liste as principais conclusões sobre temperatura]",
+        "2. [Conclusões sobre ventos]",
+        "3. [Conclusões sobre umidade e pressão]",
+        "",
+        "Estes resultados têm implicações importantes para... [discuta implicações]",
+        "",
+        "Como trabalhos futuros, sugere-se... [indique possíveis extensões do estudo]"
     ]
     add_text_page(pdf, "7. Conclusão", conclusao_text)
 
     # 7. REFERÊNCIAS
     referencias_text = [
-        "INSTITUTO NACIONAL DE METEOROLOGIA (INMET). Banco de Dados Meteorológicos para Ensino e Pesquisa...",
+        "INSTITUTO NACIONAL DE METEOROLOGIA (INMET). Banco de Dados Meteorológicos para Ensino e ",
+        f"Pesquisa (BDMEP). Disponível em: {FONTE_DADOS}. Acesso em: {DATA_RELATORIO}.",
+        "",
+        "IPCC. Climate Change 2021: The Physical Science Basis. Contribution of Working Group I to ",
+        "the Sixth Assessment Report of the Intergovernmental Panel on Climate Change. Cambridge ",
+        "University Press, 2021.",
+        "",
+        "MAIA, J. D. et al. Análise de tendências climáticas no Brasil. Revista Brasileira de ",
+        "Meteorologia, v. 30, n. 3, p. 423-434, 2015.",
+        "",
+        "WMO. Guide to Meteorological Instruments and Methods of Observation. WMO-No. 8, 2018.",
+        "",
+        "Para citação deste relatório:",
+        f"{AUTOR}. Análise Meteorológica Completa: Estação {ESTACAO} {PERIODO}. {DATA_RELATORIO}."
     ]
     add_text_page(pdf, "8. Referências", referencias_text)
 
